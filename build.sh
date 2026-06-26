@@ -68,9 +68,18 @@ else
   fi
 fi
 
+# Ensure the extension-library dir exists so the Dockerfile COPY never fails,
+# even when no bundled libraries are present (Step 26).
+mkdir -p "$HERE/data/libraries"
+[ -e "$HERE/data/libraries/.gitkeep" ] || : > "$HERE/data/libraries/.gitkeep"
+
 echo
 echo "=== payload ==="
 ls -lh "$HERE/bin/match" "$HERE/data/"*.dat "$HERE/data/"*.prf "$HERE/data/motif_family.json" "$HERE/data/place_meta.json"
+if ls -d "$HERE/data/libraries/"*/ >/dev/null 2>&1; then
+  echo "--- bundled extension libraries ---"
+  for d in "$HERE/data/libraries/"*/; do echo "  $(basename "$d")"; done
+fi
 
 echo
 echo "=== docker build $TAG ==="

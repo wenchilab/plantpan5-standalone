@@ -12,6 +12,10 @@ COPY data/motif_family.json                             /payload/data/motif_fami
 COPY data/pattern_seq_uniprot_place.dat                 /payload/data/pattern_seq_uniprot_place.dat
 COPY data/pattern_seq_uniprot_place.dat.minFP.prf       /payload/data/pattern_seq_uniprot_place.dat.minFP.prf
 COPY data/place_meta.json                               /payload/data/place_meta.json
+# Optional bundled extension libraries (Step 26). build.sh guarantees
+# data/libraries/ exists (.gitkeep) so this COPY never fails when empty.
+# .dockerignore restricts the context to the 4 recognised library filenames.
+COPY data/libraries/                                    /payload/data/libraries/
 RUN chmod +x /payload/bin/match
 
 FROM php:8.2-apache

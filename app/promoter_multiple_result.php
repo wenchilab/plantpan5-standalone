@@ -172,6 +172,39 @@ pp_header('Promoter Analysis — Results', ['datatables', 'upset', 'pmmap']);
     </span>
   </div>
 
+  <?php if (!empty($manifest['library_warnings'])): ?>
+  <div class="alert alert-warning" role="alert">
+    <i class="bi bi-exclamation-triangle"></i> <strong>Some motif libraries were skipped:</strong>
+    <ul class="mb-0 mt-1">
+      <?php foreach ($manifest['library_warnings'] as $w): ?>
+        <li><?= htmlspecialchars((string) $w) ?></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!empty($manifest['libraries'])): ?>
+  <div class="pp-card" style="padding:12px 16px;" id="librariesNote">
+    <span class="text-muted small me-2"><i class="bi bi-stack"></i> Motif libraries scanned in this job:</span>
+    <?php foreach ($manifest['libraries'] as $lib):
+        $tag   = (string) ($lib['source_tag'] ?? '');
+        $label = (string) ($lib['label'] ?? $tag);
+        if ($tag === 'PWM') {
+            $cls = 'pill pill-pwm'; $style = '';
+        } elseif ($tag === 'PLACE') {
+            $cls = 'pill pill-place'; $style = '';
+        } else {
+            $cls = 'pill';
+            $bg  = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($lib['pill_bg'] ?? '')) ? $lib['pill_bg'] : '#eef2f7';
+            $fg  = preg_match('/^#[0-9a-fA-F]{6}$/', (string) ($lib['pill_fg'] ?? '')) ? $lib['pill_fg'] : '#33414f';
+            $style = "background:{$bg};color:{$fg};";
+        }
+    ?>
+      <span class="<?= $cls ?>" style="<?= $style ?>" title="<?= htmlspecialchars((string) ($lib['id'] ?? '')) ?>"><?= htmlspecialchars($label) ?></span>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
   <?php if ($hasSpeciesFilter): ?>
   <div class="pp-card" id="speciesFilterCard">
     <h2><i class="bi bi-funnel-fill"></i> Filter by species</h2>
@@ -265,6 +298,19 @@ pp_header('Promoter Analysis — Results', ['datatables', 'upset', 'pmmap']);
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
       ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  // Step 26: source pill, generalised over libraries. Built-in PWM/PLACE keep
+  // their CSS classes; other libraries use the colours from their manifest.
+  const LIB_BY_TAG = {};
+  (MANIFEST.libraries || []).forEach(l => { if (l && l.source_tag) LIB_BY_TAG[l.source_tag] = l; });
+  function sourcePill(tag) {
+    if (tag === 'PWM')   return '<span class="pill pill-pwm">PWM</span>';
+    if (tag === 'PLACE') return '<span class="pill pill-place">PLACE</span>';
+    const l = LIB_BY_TAG[tag];
+    const hex = /^#[0-9a-fA-F]{6}$/;
+    if (l && hex.test(l.pill_bg || '') && hex.test(l.pill_fg || ''))
+      return '<span class="pill" style="background:' + l.pill_bg + ';color:' + l.pill_fg + ';">' + esc(tag) + '</span>';
+    return '<span class="pill">' + esc(tag || '') + '</span>';
   }
   function fmtBytes(n) {
     if (n < 1024) return n + ' B';
@@ -1017,11 +1063,8 @@ pp_header('Promoter Analysis — Results', ['datatables', 'upset', 'pmmap']);
           ' data-matrix="' + esc(r.motif_id) + '" title="Open TFBS info on PlantPAN (POST)">' +
           esc(r.motif_id) + ' <i class="bi bi-box-arrow-up-right" style="font-size:.7em;"></i></a>';
         const sourceCells = HAS_SPECIES_FILTER
-          ? (r.source === 'PLACE'
-              ? '<td><span class="pill pill-place">PLACE</span></td>' +
-                '<td class="small-mono">' + (r.place_name ? '<code>' + esc(r.place_name) + '</code>' : '<span class="text-muted">—</span>') + '</td>'
-              : '<td><span class="pill pill-pwm">PWM</span></td>' +
-                '<td class="text-muted">—</td>')
+          ? '<td>' + sourcePill(r.source) + '</td>' +
+            '<td class="small-mono">' + (r.place_name ? '<code>' + esc(r.place_name) + '</code>' : '<span class="text-muted">—</span>') + '</td>'
           : '';
         tr.innerHTML =
           '<td class="small-mono">' + motifLink + '</td>' +

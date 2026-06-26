@@ -31,6 +31,13 @@ const PWM_FAMILY_FALLBACK     = '(unannotated)';
 const PLACE_FAMILY_LABEL      = '(Motif sequence only)';
 const UNCHARACTERIZED_SPECIES = '(uncharacterized species)';
 
+// Extensible motif libraries (Step 26). User / extension libraries are
+// discovered as sub-folders of LIBRARIES_DIR, each holding library.dat +
+// library.dat.minFP.prf (+ optional library.json manifest and meta.json
+// annotation). The two built-in libraries (PWM, PLACE) keep their fixed const
+// paths above and are always active. See DESIGN_extensible_motif_library.md.
+const LIBRARIES_DIR = PLANTPAN_DATA . '/libraries';
+
 function pp_load_motif_family(): array
 {
     static $cache = null;
@@ -49,6 +56,239 @@ function pp_load_place_meta(): array
     $j = json_decode((string) file_get_contents(PLACE_META), true);
     $cache = $j['motifs'] ?? [];
     return $cache;
+}
+
+/* ===================================================================
+ * Extensible motif libraries (Step 26)
+ * ===================================================================
+ * A "library descriptor" is an associative array:
+ *   id, label, source_tag, pill_bg, pill_fg, family_mode
+ *   ('annotated' | 'sequence_only'), dat, prf, meta (motif_id => {...}),
+ *   builtin (bool).
+ * The scan loop iterates descriptors; PWM/PLACE are just the two built-ins.
+ */
+
+/** Read a positive-int cap from an env var, else the default. */
+function pp_lib_cap(string $env, int $default): int
+{
+    $v = getenv($env);
+    return ($v !== false && is_numeric($v) && (int) $v > 0) ? (int) $v : $default;
+}
+
+/**
+ * Truncate to $n characters. Uses mb_substr when the mbstring extension is
+ * present, else falls back to byte-wise substr — the base php:8.2-apache image
+ * ships without mbstring, so we must not hard-depend on it.
+ */
+function pp_str_cap(string $s, int $n): string
+{
+    return function_exists('mb_substr') ? mb_substr($s, 0, $n) : substr($s, 0, $n);
+}
+
+/**
+ * Built-in libraries: the two bundled scanners. Always active, fixed const
+ * paths, NOT counted against the user-library caps. Their meta maps reuse the
+ * existing slim-metadata loaders so output is identical to the pre-Step-26
+ * hardcoded two-pass engine.
+ */
+function pp_builtin_libraries(): array
+{
+    return [
+        [
+            'id' => 'pwm', 'label' => 'PWM', 'source_tag' => 'PWM',
+            'pill_bg' => null, 'pill_fg' => null,   // uses existing .pill-pwm CSS
+            'family_mode' => 'annotated',
+            'dat' => MATRIX_FILE, 'prf' => PROFILE_FILE,
+            'meta' => pp_load_motif_family(), 'builtin' => true,
+        ],
+        [
+            'id' => 'place', 'label' => 'PLACE', 'source_tag' => 'PLACE',
+            'pill_bg' => null, 'pill_fg' => null,   // uses existing .pill-place CSS
+            'family_mode' => 'sequence_only',
+            'dat' => PLACE_FILE, 'prf' => PLACE_PROFILE,
+            'meta' => pp_load_place_meta(), 'builtin' => true,
+        ],
+    ];
+}
+
+/** Deterministic pill colour [bg, fg] for an arbitrary library id. */
+function pp_auto_pill_color(string $id): array
+{
+    static $palette = [
+        ['#eaf7ee', '#1d7a3a'], ['#fdeef0', '#b32542'], ['#eef0fb', '#3b3f98'],
+        ['#fbf3e6', '#9a5b12'], ['#e9f6fb', '#136a86'], ['#f3ecfb', '#6b3aa0'],
+        ['#f0f4e9', '#4d6a1f'], ['#fbeef7', '#9c2b73'],
+    ];
+    $h = 0; $len = strlen($id);
+    for ($i = 0; $i < $len; $i++) $h = ($h * 31 + ord($id[$i])) & 0x7fffffff;
+    return $palette[$h % count($palette)];
+}
+
+/** Parse an optional library.json manifest; fill defaults from the folder name. */
+function pp_read_library_manifest(string $json_path, string $folder_name): array
+{
+    $base = preg_replace('/^\d+[_\-]?/', '', $folder_name);
+    $id   = strtolower(preg_replace('/[^A-Za-z0-9_]+/', '_', $base !== '' ? $base : $folder_name));
+    if ($id === '' || strlen($id) > 32) $id = 'lib';
+
+    $m = [
+        'id' => $id, 'label' => $id, 'source_tag' => strtoupper($id),
+        'pill_bg' => null, 'pill_fg' => null,
+        'family_mode' => 'annotated', 'enabled' => true,
+    ];
+
+    if (is_file($json_path)) {
+        $j = json_decode((string) file_get_contents($json_path), true);
+        if (is_array($j)) {
+            if (!empty($j['id']) && preg_match('/^[a-z0-9_]{1,32}$/', (string) $j['id'])) $m['id'] = $j['id'];
+            if (!empty($j['label']))      $m['label']      = pp_str_cap((string) $j['label'], 48);
+            if (!empty($j['source_tag'])) $m['source_tag'] = pp_str_cap((string) $j['source_tag'], 24);
+            if (!empty($j['pill_bg']) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) $j['pill_bg'])) $m['pill_bg'] = $j['pill_bg'];
+            if (!empty($j['pill_fg']) && preg_match('/^#[0-9a-fA-F]{6}$/', (string) $j['pill_fg'])) $m['pill_fg'] = $j['pill_fg'];
+            if (($j['family_mode'] ?? '') === 'sequence_only') $m['family_mode'] = 'sequence_only';
+            if (array_key_exists('enabled', $j)) $m['enabled'] = (bool) $j['enabled'];
+        }
+    }
+    if ($m['label'] === '')      $m['label'] = $m['id'];
+    if ($m['source_tag'] === '') $m['source_tag'] = strtoupper($m['id']);
+    if ($m['pill_bg'] === null || $m['pill_fg'] === null) {
+        [$bg, $fg] = pp_auto_pill_color($m['id']);
+        if ($m['pill_bg'] === null) $m['pill_bg'] = $bg;
+        if ($m['pill_fg'] === null) $m['pill_fg'] = $fg;
+    }
+    return $m;
+}
+
+/** Load a user library's meta.json into motif_id => {family?,species?,place_name?}. */
+function pp_load_library_meta(string $path): array
+{
+    if (!is_file($path)) return [];
+    $j = json_decode((string) file_get_contents($path), true);
+    return (is_array($j) && isset($j['motifs']) && is_array($j['motifs'])) ? $j['motifs'] : [];
+}
+
+/**
+ * Resolve family / species / place_name for one motif hit under a library
+ * descriptor, applying graceful-degradation fallbacks. Centralised so the CLI
+ * and file-writer paths annotate identically.
+ */
+function pp_resolve_motif_annotation(array $lib, string $motif_id): array
+{
+    $meta    = $lib['meta'][$motif_id] ?? null;
+    $species = $meta['species'] ?? [];
+    if (!is_array($species) || !$species) $species = [UNCHARACTERIZED_SPECIES];
+    $family = ($lib['family_mode'] === 'sequence_only')
+        ? PLACE_FAMILY_LABEL
+        : ($meta['family'] ?? PWM_FAMILY_FALLBACK);
+    return ['species' => $species, 'family' => $family, 'place_name' => $meta['place_name'] ?? null];
+}
+
+/**
+ * Active library descriptors for a scan: the two built-ins first, then valid
+ * user/extension libraries under LIBRARIES_DIR (sorted by folder name, so a
+ * numeric prefix controls order). Invalid / over-cap libraries are skipped and
+ * recorded in $GLOBALS['pp_library_warnings'].
+ *
+ * NOT statically cached: meta.json is re-read each scan so a mounted library's
+ * annotation can be hot-updated without a rebuild or restart.
+ */
+function pp_discover_libraries(): array
+{
+    $GLOBALS['pp_library_warnings'] = [];
+    $libs = pp_builtin_libraries();
+    if (!is_dir(LIBRARIES_DIR)) return $libs;
+
+    $max_libs  = pp_lib_cap('PP_MAX_LIBRARIES', 16);
+    $max_dat   = pp_lib_cap('PP_MAX_LIBRARY_DAT_BYTES', 64 * 1024 * 1024);
+    $max_total = pp_lib_cap('PP_MAX_LIBRARY_TOTAL_BYTES', 256 * 1024 * 1024);
+
+    $root    = realpath(LIBRARIES_DIR);
+    $entries = glob(LIBRARIES_DIR . '/*', GLOB_ONLYDIR) ?: [];
+    sort($entries);
+
+    $count = 0; $total = 0;
+    $seen_ids = ['pwm' => true, 'place' => true];
+    foreach ($entries as $path) {
+        $name = basename($path);
+        if (is_link($path)) {
+            $GLOBALS['pp_library_warnings'][] = "Library '$name' ignored: symlinks are not allowed.";
+            continue;
+        }
+        $rp = realpath($path);
+        if ($rp === false || $root === false || strpos($rp, $root . DIRECTORY_SEPARATOR) !== 0) {
+            $GLOBALS['pp_library_warnings'][] = "Library '$name' ignored: path escapes the libraries directory.";
+            continue;
+        }
+        $dat = $path . '/library.dat';
+        $prf = $path . '/library.dat.minFP.prf';
+        if (!is_file($dat) || !is_file($prf)) {
+            $GLOBALS['pp_library_warnings'][] = "Library '$name' ignored: missing library.dat or library.dat.minFP.prf.";
+            continue;
+        }
+        $sz = (int) filesize($dat);
+        if ($sz > $max_dat) {
+            $GLOBALS['pp_library_warnings'][] = "Library '$name' skipped: library.dat exceeds the per-library size cap.";
+            continue;
+        }
+        if ($count >= $max_libs) {
+            $GLOBALS['pp_library_warnings'][] = "Library '$name' skipped: exceeds the active-library limit ($max_libs).";
+            continue;
+        }
+        if ($total + $sz > $max_total) {
+            $GLOBALS['pp_library_warnings'][] = "Library '$name' skipped: combined library size cap reached.";
+            continue;
+        }
+        $man = pp_read_library_manifest($path . '/library.json', $name);
+        if (!$man['enabled']) continue;
+        if (isset($seen_ids[$man['id']])) {
+            $GLOBALS['pp_library_warnings'][] = "Library '$name' skipped: duplicate library id '{$man['id']}'.";
+            continue;
+        }
+        $seen_ids[$man['id']] = true;
+        $libs[] = [
+            'id' => $man['id'], 'label' => $man['label'], 'source_tag' => $man['source_tag'],
+            'pill_bg' => $man['pill_bg'], 'pill_fg' => $man['pill_fg'],
+            'family_mode' => $man['family_mode'],
+            'dat' => $dat, 'prf' => $prf,
+            'meta' => pp_load_library_meta($path . '/meta.json'), 'builtin' => false,
+        ];
+        $count++; $total += $sz;
+    }
+    return $libs;
+}
+
+/** Public (path-free, meta-free) summary of active libraries for the manifest. */
+function pp_libraries_public(array $libs): array
+{
+    $out = [];
+    foreach ($libs as $l) {
+        $out[] = [
+            'id' => $l['id'], 'label' => $l['label'], 'source_tag' => $l['source_tag'],
+            'pill_bg' => $l['pill_bg'], 'pill_fg' => $l['pill_fg'],
+            'family_mode' => $l['family_mode'], 'builtin' => !empty($l['builtin']),
+        ];
+    }
+    return $out;
+}
+
+/**
+ * Run match for every library descriptor, returning lib_id => [seq_id => rows].
+ * A built-in failure is fatal; a user-library failure is downgraded to a
+ * warning + empty result so one bad .dat can't break the whole job.
+ */
+function pp_run_libraries(array $libs, string $fasta_path, string $tmpdir): array
+{
+    $hits = [];
+    foreach ($libs as $lib) {
+        try {
+            $hits[$lib['id']] = pp_run_match_pass($lib['dat'], $lib['prf'], $fasta_path, $tmpdir);
+        } catch (Throwable $e) {
+            if (!empty($lib['builtin'])) throw $e;
+            $GLOBALS['pp_library_warnings'][] = "Library '{$lib['label']}' skipped: scan failed.";
+            $hits[$lib['id']] = [];
+        }
+    }
+    return $hits;
 }
 
 function pp_write_input_fasta(string $raw, string $tmpdir): string
@@ -159,57 +399,36 @@ function pp_run_match_pass(string $matrix_file, string $profile_file, string $fa
  */
 function pp_scan_promoters(string $fasta_path, string $tmpdir): array
 {
-    $family_lookup = pp_load_motif_family();
-    $place_lookup  = pp_load_place_meta();
+    $libs   = pp_discover_libraries();
+    $by_lib = pp_run_libraries($libs, $fasta_path, $tmpdir);
 
-    $pwm_by_seq   = pp_run_match_pass(MATRIX_FILE, PROFILE_FILE, $fasta_path, $tmpdir);
-    $place_by_seq = pp_run_match_pass(PLACE_FILE, PLACE_PROFILE, $fasta_path, $tmpdir);
-
-    // Preserve input seq order: PWM blocks first, then any seq seen only in PLACE
+    // Preserve input seq order across all libraries (built-ins first).
     $all_seq_ids = [];
-    foreach (array_keys($pwm_by_seq) as $s) $all_seq_ids[$s] = true;
-    foreach (array_keys($place_by_seq) as $s) $all_seq_ids[$s] = true;
+    foreach ($libs as $lib) {
+        foreach (array_keys($by_lib[$lib['id']] ?? []) as $s) $all_seq_ids[$s] = true;
+    }
 
     $rows = [];
     $motifs_seen = [];
     foreach (array_keys($all_seq_ids) as $sid) {
-        foreach (($pwm_by_seq[$sid] ?? []) as $r) {
-            $meta    = $family_lookup[$r['motif_id']] ?? null;
-            $species = $meta['species'] ?? [];
-            if (!$species) $species = [UNCHARACTERIZED_SPECIES];
-            $rows[] = [
-                'seq_id'        => $sid,
-                'motif_id'      => $r['motif_id'],
-                'position'      => $r['position'],
-                'strand'        => $r['strand'],
-                'score'         => $r['score'],
-                'hit'           => $r['hit'],
-                'family'        => $meta['family'] ?? PWM_FAMILY_FALLBACK,
-                'species_count' => count($species),
-                'source'        => 'PWM',
-                'place_name'    => null,
-                'species'       => $species,
-            ];
-            $motifs_seen[$r['motif_id']] = true;
-        }
-        foreach (($place_by_seq[$sid] ?? []) as $r) {
-            $meta    = $place_lookup[$r['motif_id']] ?? null;
-            $species = $meta['species'] ?? [];
-            if (!$species) $species = [UNCHARACTERIZED_SPECIES];
-            $rows[] = [
-                'seq_id'        => $sid,
-                'motif_id'      => $r['motif_id'],
-                'position'      => $r['position'],
-                'strand'        => $r['strand'],
-                'score'         => $r['score'],
-                'hit'           => $r['hit'],
-                'family'        => PLACE_FAMILY_LABEL,
-                'species_count' => count($species),
-                'source'        => 'PLACE',
-                'place_name'    => $meta['place_name'] ?? null,
-                'species'       => $species,
-            ];
-            $motifs_seen[$r['motif_id']] = true;
+        foreach ($libs as $lib) {
+            foreach (($by_lib[$lib['id']][$sid] ?? []) as $r) {
+                $a = pp_resolve_motif_annotation($lib, $r['motif_id']);
+                $rows[] = [
+                    'seq_id'        => $sid,
+                    'motif_id'      => $r['motif_id'],
+                    'position'      => $r['position'],
+                    'strand'        => $r['strand'],
+                    'score'         => $r['score'],
+                    'hit'           => $r['hit'],
+                    'family'        => $a['family'],
+                    'species_count' => count($a['species']),
+                    'source'        => $lib['source_tag'],
+                    'place_name'    => $a['place_name'],
+                    'species'       => $a['species'],
+                ];
+                $motifs_seen[$r['motif_id']] = true;
+            }
         }
     }
     return [
@@ -332,12 +551,11 @@ function pp_scan_to_files(string $fasta_path, string $job_id, string $tmpdir): a
     $cap = pp_check_capacity($total_bp * PP_BYTES_PER_BP_ESTIMATE);
     if (!$cap['allowed']) throw new RuntimeException($cap['reason']);
 
-    $family_lookup = pp_load_motif_family();
-    $place_lookup  = pp_load_place_meta();
-
-    // Two match passes: PWM library + PLACE library.
-    $pwm_by_seq   = pp_run_match_pass(MATRIX_FILE,  PROFILE_FILE,  $fasta_path, $tmpdir);
-    $place_by_seq = pp_run_match_pass(PLACE_FILE,   PLACE_PROFILE, $fasta_path, $tmpdir);
+    // One match pass per active library (built-in PWM + PLACE, then any
+    // discovered user/extension libraries). Output for the two built-ins is
+    // identical to the pre-Step-26 hardcoded two-pass engine.
+    $libs   = pp_discover_libraries();
+    $by_lib = pp_run_libraries($libs, $fasta_path, $tmpdir);
 
     $sequences_summary  = [];
     $total_hits         = 0;
@@ -356,61 +574,34 @@ function pp_scan_to_files(string $fasta_path, string $job_id, string $tmpdir): a
         $fam_counts        = [];
         $motif_species_seq = [];  // per-seq lookup map: motif_id => [species...]
 
-        foreach (($pwm_by_seq[$seq_id] ?? []) as $r) {
-            $meta    = $family_lookup[$r['motif_id']] ?? null;
-            $species = $meta['species'] ?? [];
-            if (!$species) $species = [UNCHARACTERIZED_SPECIES];
-            $family  = $meta['family'] ?? PWM_FAMILY_FALLBACK;
-            $rows[] = [
-                'seq_id'        => $seq_id,
-                'motif_id'      => $r['motif_id'],
-                'position'      => $r['position'],
-                'strand'        => $r['strand'],
-                'score'         => $r['score'],
-                'hit'           => $r['hit'],
-                'family'        => $family,
-                'species_count' => count($species),
-                'source'        => 'PWM',
-                'place_name'    => null,
-            ];
-            $fam_counts[$family] = ($fam_counts[$family] ?? 0) + 1;
-            $motif_species_seq[$r['motif_id']] = $species;
-            $all_motifs_seen[$r['motif_id']] = true;
-            $motif_to_seqs[$r['motif_id']][$seq_id] = true;
-            if (!isset($motif_meta_seen[$r['motif_id']])) {
-                $motif_meta_seen[$r['motif_id']] = [
-                    'family'  => $family,
-                    'species' => $species,
-                    'source'  => 'PWM',
+        foreach ($libs as $lib) {
+            foreach (($by_lib[$lib['id']][$seq_id] ?? []) as $r) {
+                $a       = pp_resolve_motif_annotation($lib, $r['motif_id']);
+                $family  = $a['family'];
+                $species = $a['species'];
+                $rows[] = [
+                    'seq_id'        => $seq_id,
+                    'motif_id'      => $r['motif_id'],
+                    'position'      => $r['position'],
+                    'strand'        => $r['strand'],
+                    'score'         => $r['score'],
+                    'hit'           => $r['hit'],
+                    'family'        => $family,
+                    'species_count' => count($species),
+                    'source'        => $lib['source_tag'],
+                    'place_name'    => $a['place_name'],
                 ];
-            }
-        }
-        foreach (($place_by_seq[$seq_id] ?? []) as $r) {
-            $meta    = $place_lookup[$r['motif_id']] ?? null;
-            $species = $meta['species'] ?? [];
-            if (!$species) $species = [UNCHARACTERIZED_SPECIES];
-            $rows[] = [
-                'seq_id'        => $seq_id,
-                'motif_id'      => $r['motif_id'],
-                'position'      => $r['position'],
-                'strand'        => $r['strand'],
-                'score'         => $r['score'],
-                'hit'           => $r['hit'],
-                'family'        => PLACE_FAMILY_LABEL,
-                'species_count' => count($species),
-                'source'        => 'PLACE',
-                'place_name'    => $meta['place_name'] ?? null,
-            ];
-            $fam_counts[PLACE_FAMILY_LABEL] = ($fam_counts[PLACE_FAMILY_LABEL] ?? 0) + 1;
-            $motif_species_seq[$r['motif_id']] = $species;
-            $all_motifs_seen[$r['motif_id']] = true;
-            $motif_to_seqs[$r['motif_id']][$seq_id] = true;
-            if (!isset($motif_meta_seen[$r['motif_id']])) {
-                $motif_meta_seen[$r['motif_id']] = [
-                    'family'  => PLACE_FAMILY_LABEL,
-                    'species' => $species,
-                    'source'  => 'PLACE',
-                ];
+                $fam_counts[$family] = ($fam_counts[$family] ?? 0) + 1;
+                $motif_species_seq[$r['motif_id']] = $species;
+                $all_motifs_seen[$r['motif_id']] = true;
+                $motif_to_seqs[$r['motif_id']][$seq_id] = true;
+                if (!isset($motif_meta_seen[$r['motif_id']])) {
+                    $motif_meta_seen[$r['motif_id']] = [
+                        'family'  => $family,
+                        'species' => $species,
+                        'source'  => $lib['source_tag'],
+                    ];
+                }
             }
         }
         // Stable order in the lookup map (keeps diffs small across re-scans).
@@ -503,6 +694,11 @@ function pp_scan_to_files(string $fasta_path, string $job_id, string $tmpdir): a
         'total_json_bytes'      => $total_json_bytes,
         'sequences'             => $sequences_summary,
         'species_universe'      => $species_universe,
+        // Step 26: active library descriptors (path-free) + any skip warnings.
+        // Additive — older result pages ignore these; newer ones render the
+        // Source pills and a "libraries in this job" note from them.
+        'libraries'             => pp_libraries_public($libs),
+        'library_warnings'      => $GLOBALS['pp_library_warnings'] ?? [],
     ];
 }
 

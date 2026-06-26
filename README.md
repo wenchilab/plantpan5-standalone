@@ -81,6 +81,22 @@ plantpan5-offline/
     └── package.sh
 ```
 
+## Custom motif libraries
+
+Scan extra libraries alongside the built-in PWM + PLACE ones. A library is a
+folder with `library.dat` + `library.dat.minFP.prf` (required) and optional
+`library.json` (display/behaviour) + `meta.json` (per-motif family/species).
+Mount it at runtime — proprietary libraries never enter the image:
+
+```bash
+docker run --rm -p 8080:80 \
+    -v "$PWD/mylib":/opt/plantpan/data/libraries/50_mylab:ro \
+    plantpan5-offline:latest
+```
+
+Motifs with no annotation still scan (shown as matrix ID + `(unannotated)` +
+`(uncharacterized species)`). Full spec + caps: see `OFFLINE_BUILD.md`.
+
 ## Limits in the offline build
 
 - No hard cap on sequence count (effectively unlimited)

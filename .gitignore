@@ -9,6 +9,18 @@
 /data/pattern_seq_uniprot_place.dat.minFP.prf
 /data/place_meta.json
 
+# Extension libraries are user/runtime data (or bundled at build time from a
+# private source) — never part of the public code repo.
+/data/libraries/
+
+# Internal development notes / planning docs — NOT for the public repo.
+# These stay on the dev machine only. End users get README.md + OFFLINE_BUILD.md.
+/GUIDE.md
+/NEXT_FEATURE_PROMPT.md
+/NEXT_FEATURE_PROMPT_v2.md
+/REPACKAGE_INSTRUCTIONS.md
+/DESIGN_extensible_motif_library.md
+
 # OS / Editor
 .DS_Store
 *.swp

@@ -20,6 +20,21 @@
 !data/pattern_seq_uniprot_place.dat.minFP.prf
 !data/place_meta.json
 
+# Bundled extension libraries (Step 26). TIGHT allow-list: only the four
+# recognised filenames inside data/libraries/<name>/ are shippable. Any other
+# file dropped in a library folder stays excluded by the `**` default, so
+# stray/sensitive files never enter the build context. Parent dirs must be
+# re-included for the file negations below to take effect. The hard-deny
+# block further down still wins, so a library file named like the curated
+# annotation (e.g. *motif2species*) is refused regardless.
+!data/libraries/
+!data/libraries/.gitkeep
+!data/libraries/*/
+!data/libraries/*/library.dat
+!data/libraries/*/library.dat.minFP.prf
+!data/libraries/*/library.json
+!data/libraries/*/meta.json
+
 !scripts/verify_image.sh
 
 # Hard-deny anything that smells like the curated annotation.

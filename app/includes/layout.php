@@ -201,9 +201,9 @@ function pp_footer(): void
 </main>
 <footer class="pp-footer">
   PlantPAN 5 Stand-alone Edition &mdash; scanning runs entirely on your machine. No data leaves the container.
-  <!--<br>
-  Citation: Yang C-W. <em>et al.</em> (2024) PlantPAN 5: an updated regulatory transcription factor database. <em>Nucleic Acids Research</em>.
   <br>
+  <!-- Citation hidden until the companion publication is available.
+  Citation: Yang C-W. <em>et al.</em> (2024) PlantPAN 5: an updated regulatory transcription factor database. <em>Nucleic Acids Research</em>.
   -->
   Maintained by <strong>PBMB Lab</strong> &middot; <strong>Institute of Tropical Plant Sciences and Microbiology, National Cheng Kung University</strong>
 
