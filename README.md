@@ -25,17 +25,92 @@ PI Prof. Wen-Chi Chang (<wenchilab@gmail.com>).
 > git-ignored. Distribute the runnable build via `package.sh` (zip) or a
 > Docker image, not via git.
 
-## Quick start
+## Installation & usage
+
+### 1. Install Docker
+
+PlantPAN Stand-alone runs as a Docker container, so install Docker first:
+
+- **Windows 10/11** — install **Docker Desktop** (WSL 2 backend) from
+  <https://www.docker.com/products/docker-desktop/>, run the installer, launch
+  **Docker Desktop**, and wait until the tray whale icon shows *Running*.
+- **macOS** — install **Docker Desktop** (pick the Apple-Silicon or Intel build
+  to match your Mac) from the same page, launch it, and wait for *Running*.
+- **Linux** — install Docker Engine (<https://docs.docker.com/engine/install/>),
+  then start it and allow non-root use:
 
 ```bash
-docker run --rm -p 8080:80 ghcr.io/wenchilab/plantpan5-offline:latest
-# open http://localhost:8080
+sudo systemctl start docker
+sudo usermod -aG docker "$USER"    # then log out/in to run docker without sudo
 ```
 
-## Building from source
+Verify Docker is ready:
 
-You need a working clone of the live PlantPAN 5 source tree as a sibling
-directory (so `../program_base/` resolves):
+```bash
+docker --version
+docker run --rm hello-world        # prints "Hello from Docker!" when working
+```
+
+### 2. Get PlantPAN and run it
+
+Pick **one** option below; both end with the app on port 8080.
+
+**Option A — Ready-to-run image (recommended, no build).** Download
+`plantpan5-offline-v1.0-image.tar.gz` from the [Releases](../../releases) page:
+
+```bash
+gunzip -c plantpan5-offline-v1.0-image.tar.gz | docker load
+docker run --rm -p 8080:80 plantpan5-offline:1.0
+```
+
+**Option B — Source package (smaller; builds locally, needs internet on first
+build).** Download `plantpan5-offline-v1.0-*.zip` from Releases:
+
+```bash
+unzip plantpan5-offline-v1.0-*.zip
+cd plantpan5-offline
+chmod +x build.sh entrypoint.sh scripts/*.sh app/bin/*   # Win/Mac unzip drops the +x bit
+./build.sh                                               # ~3-8 min the first time
+docker run --rm -p 8080:80 plantpan5-offline:latest
+```
+
+### 3. Open, stop, change port
+
+- **Open:** <http://localhost:8080> in your browser.
+- **Stop:** press `Ctrl+C` in the terminal running the container.
+- **Port 8080 busy?** map a different host port:
+
+```bash
+docker run --rm -p 9090:80 plantpan5-offline:1.0   # then open http://localhost:9090
+```
+
+### 4. Command-line scanning (for pipelines)
+
+```bash
+docker run --rm -v "$PWD":/work plantpan5-offline:1.0 \
+    scan /work/your_promoters.fa > hits.tsv
+```
+
+Outputs a 10-column TSV: `Sequence ID, Motif ID, Source, PLACE Name, Family,
+Position, Strand, Score, Hit sequence, Species`.
+
+### Troubleshooting
+
+- **`Cannot connect to the Docker daemon`** — Docker isn't running. Start Docker
+  Desktop (Windows/macOS) or `sudo systemctl start docker` (Linux).
+- **`port is already allocated`** — use a different host port (see step 3).
+- **`./build.sh: Permission denied`** — restore exec bits:
+  `chmod +x build.sh entrypoint.sh scripts/*.sh app/bin/*`.
+- **`/bin/bash^M: bad interpreter`** — line endings got mangled:
+  `sed -i 's/\r$//' build.sh entrypoint.sh scripts/*.sh`.
+- **Apple-Silicon Mac** — the scanner binary is x86_64, so the image runs under
+  emulation (a bit slower) but works.
+
+## Building from source (maintainers)
+
+Most users should use the Releases above. This section is for **maintainers**
+who have the live PlantPAN 5 source tree as a sibling directory (so
+`../program_base/` resolves):
 
 ```bash
 cd plantpan5-offline
