@@ -3,7 +3,8 @@ require __DIR__ . '/includes/layout.php';
 pp_header('About / Citation');
 ?>
 <div class="pp-card">
-  <h2><i class="bi bi-info-circle"></i> About PlantPAN 5 &mdash; Stand-alone Edition</h2>
+  <h2><i class="bi bi-info-circle"></i> About PlantPAN 5 &mdash; Stand-alone Edition
+    <span class="badge bg-secondary align-middle" style="font-size:.55em;">v<?= htmlspecialchars(PP_VERSION) ?></span></h2>
   <p>
     A stand-alone Docker edition of PlantPAN promoter analysis tools, intended
     for use cases where higher sequence size needed or uploading sequences to a public server is not desirable

@@ -20,6 +20,7 @@ RUN chmod +x /payload/bin/match
 
 FROM php:8.2-apache
 LABEL org.opencontainers.image.description="PlantPAN 5 offline promoter scan (no curated annotation)"
+LABEL org.opencontainers.image.version="1.0"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates libstdc++6 gawk curl \

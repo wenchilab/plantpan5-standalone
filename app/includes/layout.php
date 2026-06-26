@@ -9,6 +9,10 @@
  * Loaded synchronously in head so inline IIFEs further down can use them
  * (matches how the live PlantPAN 5 result page loads them).
  */
+
+// Released version, stamped in the footer + About page.
+const PP_VERSION = '1.0';
+
 function pp_header(string $title = 'PlantPAN 5 — Stand-alone Edition', array $extras = []): void
 {
 ?>
@@ -200,7 +204,7 @@ function pp_footer(): void
 ?>
 </main>
 <footer class="pp-footer">
-  PlantPAN 5 Stand-alone Edition &mdash; scanning runs entirely on your machine. No data leaves the container.
+  PlantPAN 5 Stand-alone Edition <span class="text-muted">v<?= htmlspecialchars(PP_VERSION) ?></span> &mdash; scanning runs entirely on your machine. No data leaves the container.
   <br>
   <!-- Citation hidden until the companion publication is available.
   Citation: Yang C-W. <em>et al.</em> (2024) PlantPAN 5: an updated regulatory transcription factor database. <em>Nucleic Acids Research</em>.
