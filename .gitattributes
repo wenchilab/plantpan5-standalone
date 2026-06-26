@@ -1,0 +1,14 @@
+# Force LF line endings for files that run inside the Linux Docker image.
+# Without this, a Windows clone will silently rewrite them to CRLF and
+# bash will refuse to execute (`/bin/bash^M: bad interpreter`).
+
+*.sh        text eol=lf
+*.php       text eol=lf
+*.py        text eol=lf
+Dockerfile  text eol=lf
+entrypoint.sh text eol=lf
+app/bin/*   text eol=lf
+
+*.dat       binary
+*.prf       binary
+bin/match   binary

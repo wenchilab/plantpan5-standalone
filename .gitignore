@@ -1,0 +1,15 @@
+# Build artifacts -- populated by build.sh from ../program_base/.
+# Kept OUT of the public repo: distribution is via package.sh zip / Docker
+# image, not git. The repo ships code only, never the bundled libraries.
+/bin/match
+/data/PlantPAN3_v2_matrix_with_TF.dat
+/data/PlantPAN3_v2_matrix_with_TF.dat.minFP.prf
+/data/motif_family.json
+/data/pattern_seq_uniprot_place.dat
+/data/pattern_seq_uniprot_place.dat.minFP.prf
+/data/place_meta.json
+
+# OS / Editor
+.DS_Store
+*.swp
+__pycache__/

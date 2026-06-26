@@ -1,0 +1,54 @@
+#!/usr/bin/env php
+<?php
+/**
+ * plantpan-scan: CLI. Reads FASTA from <file> or stdin, writes TSV to stdout.
+ *   plantpan-scan input.fa > output.tsv
+ *   cat input.fa | plantpan-scan -
+ *
+ * Since Step 24 the TSV schema includes both PWM and PLACE hits in one
+ * stream, tagged by a Source column. PLACE rows additionally carry a
+ * PLACE Name. The Species column is semicolon-separated.
+ */
+require __DIR__ . '/../includes/scan_engine.php';
+
+$argv0 = $argv[0] ?? 'plantpan-scan';
+$src   = $argv[1] ?? null;
+
+if (!$src || in_array($src, ['-h', '--help'], true)) {
+    fwrite(STDERR,
+        "Usage: $argv0 <input.fa | ->\n" .
+        "  Reads multi-FASTA, writes TSV to stdout:\n" .
+        "    Sequence ID  Motif ID  Source  PLACE Name  Family  Position  Strand  Score  Hit sequence  Species\n");
+    exit($src ? 0 : 1);
+}
+
+$raw = ($src === '-') ? stream_get_contents(STDIN) : @file_get_contents($src);
+if ($raw === false) { fwrite(STDERR, "ERROR: cannot read $src\n"); exit(1); }
+
+try {
+    $tmp = sys_get_temp_dir();
+    $fa  = pp_write_input_fasta($raw, $tmp);
+    $r   = pp_scan_promoters($fa, $tmp);
+    @unlink($fa);
+} catch (Throwable $e) {
+    fwrite(STDERR, "ERROR: " . $e->getMessage() . "\n"); exit(2);
+}
+
+$out = fopen('php://stdout', 'w');
+fwrite($out, "Sequence ID\tMotif ID\tSource\tPLACE Name\tFamily\tPosition\tStrand\tScore\tHit sequence\tSpecies\n");
+foreach ($r['rows'] as $row) {
+    $species_str = !empty($row['species']) ? implode('; ', $row['species']) : '';
+    fwrite($out, sprintf("%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\n",
+        $row['seq_id'],
+        $row['motif_id'],
+        (string) ($row['source']     ?? ''),
+        (string) ($row['place_name'] ?? ''),
+        $row['family'],
+        $row['position'],
+        $row['strand'],
+        (string) ($row['score'] ?? ''),
+        $row['hit'],
+        $species_str));
+}
+fwrite(STDERR, sprintf("# %d hits across %d sequences (%d distinct motifs)\n",
+    $r['stats']['total_hits'], $r['stats']['sequences'], $r['stats']['distinct_motifs']));

@@ -1,0 +1,47 @@
+# Allow-list: refuse everything by default, then opt in only what we ship.
+**
+
+!Dockerfile
+!.dockerignore
+!entrypoint.sh
+!build.sh
+
+!app/
+!app/**
+
+!bin/
+!bin/match
+
+!data/
+!data/PlantPAN3_v2_matrix_with_TF.dat
+!data/PlantPAN3_v2_matrix_with_TF.dat.minFP.prf
+!data/motif_family.json
+!data/pattern_seq_uniprot_place.dat
+!data/pattern_seq_uniprot_place.dat.minFP.prf
+!data/place_meta.json
+
+!scripts/verify_image.sh
+
+# Hard-deny anything that smells like the curated annotation.
+**/*motif2species*
+**/cross_species/**
+**/homo_TF_TF_list*
+**/TFlocus_with_PPI*
+**/TFBS.TF_tomtom_database*
+**/TF_tomtom_database*
+**/tempfile/**
+**/tempfile_scan/**
+**/.git/**
+**/.env*
+**/node_modules/**
+**/__pycache__/**
+**/*.sql
+**/*.sql.gz
+**/*.bak
+
+# Runtime job output directories must never enter the build context.
+# These are created INSIDE the container by Apache; if dev testing produced
+# one in the source tree (e.g. via `php -S` with PLANTPAN_OUTPUT_ROOT pointing
+# at a relative path under app/), refuse to ship it.
+**/output/
+**/output/**
