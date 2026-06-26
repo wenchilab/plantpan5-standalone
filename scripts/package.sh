@@ -52,6 +52,7 @@ mkdir -p "$OUT"; rm -f "$ZIP"
        "$NAME/NEXT_FEATURE_PROMPT_v2.md" \
        "$NAME/REPACKAGE_INSTRUCTIONS.md" \
        "$NAME/DESIGN_extensible_motif_library.md" \
+       "$NAME/RELEASE.md" \
 )
 ( cd "$OUT" && sha256sum "$(basename "$ZIP")" > "$(basename "$ZIP").sha256" )
 
