@@ -188,8 +188,8 @@ plantpan5-offline/
 │   ├── pattern_seq_uniprot_place.dat.minFP.prf
 │   └── place_meta.json                   # slim PLACE metadata (place_name + species)
 └── scripts/
-    ├── extract_motif_family.{php,py}     # build-time: HQ motif2species -> motif_family.json
-    ├── extract_place_meta.{php,py}       # build-time: TF_LQ_motif2species -> place_meta.json
+    ├── extract_motif_family.{php,py}     # build-time: emit slim motif_family.json
+    ├── extract_place_meta.{php,py}       # build-time: emit slim place_meta.json
     ├── verify_image.sh
     └── package.sh
 ```
