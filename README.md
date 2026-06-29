@@ -66,23 +66,33 @@ Both offer the same two files:
 
 ### 3. Load and run
 
-Most users want **Option A**. When it's running, open <http://localhost:8080>.
+When it's running, open <http://localhost:8080> in your browser.
+
+> **Important — go to the download folder first.** The commands below only work
+> if your terminal is *in the same folder as the downloaded file*. Downloads
+> usually land in `Downloads`, so each block starts with a `cd` into it — change
+> that path if you saved the file elsewhere.
 
 #### Option A — Ready-to-run image (recommended, no build)
-
-`docker load -i` reads the gzipped tarball directly, so this is the same on
-every platform — just use that platform's terminal.
 
 **Linux / macOS** — Terminal:
 
 ```bash
+cd ~/Downloads                                    # the folder with the downloaded file
 docker load -i plantpan5-offline-v1.0-image.tar.gz
 docker run --rm -p 8080:80 plantpan5-offline:1.0
 ```
 
-**Windows** — PowerShell (Docker Desktop running), `cd` to the download folder first:
+> **macOS Safari note:** Safari auto-expands `.gz`, so your file may arrive as
+> `plantpan5-offline-v1.0-image.tar` (no `.gz`). Just use that name —
+> `docker load -i plantpan5-offline-v1.0-image.tar` — it reads both `.tar.gz`
+> and plain `.tar`. (To stop the auto-expand: Safari → Settings → General →
+> uncheck "Open 'safe' files after downloading".)
+
+**Windows** — PowerShell (Docker Desktop running):
 
 ```powershell
+cd $HOME\Downloads                                # the folder with the downloaded file
 docker load -i plantpan5-offline-v1.0-image.tar.gz
 docker run --rm -p 8080:80 plantpan5-offline:1.0
 ```
@@ -92,17 +102,18 @@ docker run --rm -p 8080:80 plantpan5-offline:1.0
 **Linux / macOS** — Terminal:
 
 ```bash
+cd ~/Downloads                                    # the folder with the downloaded .zip
 unzip plantpan5-offline-v1.0-*.zip
-cd plantpan5-offline
+cd plantpan5-offline                              # enter the unzipped folder
 chmod +x build.sh entrypoint.sh scripts/*.sh app/bin/*   # unzip drops the +x bit
 ./build.sh                                               # ~3-8 min the first time
 docker run --rm -p 8080:80 plantpan5-offline:latest
 ```
 
 **Windows** — the build script is a **bash** script, so run it inside a **WSL**
-(Ubuntu) terminal; the commands are identical to Linux/macOS above, and Docker
-Desktop's WSL integration lets the container start. If you only want to *run*
-(not build), use Option A in PowerShell instead.
+(Ubuntu) terminal: `cd` to the folder with the `.zip`, then use the same commands
+as Linux/macOS above. Docker Desktop's WSL integration lets the container start.
+If you only want to *run* (not build), use Option A in PowerShell instead.
 
 ### 4. Open, stop, change port
 
@@ -116,9 +127,13 @@ docker run --rm -p 9090:80 plantpan5-offline:1.0   # then open http://localhost:
 
 ### 5. Command-line scanning (for pipelines)
 
+`-v "$PWD":/work` shares your **current folder** with the container, so `cd` to
+the folder that holds your FASTA file first.
+
 **Linux / macOS** — Terminal:
 
 ```bash
+cd /path/to/your/fasta             # the folder containing your_promoters.fa
 docker run --rm -v "$PWD":/work plantpan5-offline:1.0 \
     scan /work/your_promoters.fa > hits.tsv
 ```
@@ -126,6 +141,7 @@ docker run --rm -v "$PWD":/work plantpan5-offline:1.0 \
 **Windows** — PowerShell (note the `${PWD}` quoting):
 
 ```powershell
+cd C:\path\to\your\fasta           # the folder containing your_promoters.fa
 docker run --rm -v "${PWD}:/work" plantpan5-offline:1.0 scan /work/your_promoters.fa > hits.tsv
 ```
 
