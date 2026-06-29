@@ -11,10 +11,7 @@ IMAGE="${1:-plantpan5-offline:latest}"
 BLACKLIST=(
   'cross_species'
   'homo_TF_TF_list'
-  'TF_HQ_motif2species'
-  'TF_LQ_motif2species'
-  'Plantpan3_TF_HQ_motif2species'
-  'PlantPAN3_wTF_motif2species'
+  'motif2species'
   'TFlocus_with_PPI'
   'ChIPseq'
   'chip_seq'

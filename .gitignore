@@ -22,6 +22,15 @@
 /DESIGN_extensible_motif_library.md
 /RELEASE.md
 
+# Maintainer-only build tooling — these name the curated source files, so they
+# must never reach the public repo or a distribution zip. Public users get the
+# payload pre-built in the self-contained zip / image.
+/scripts/_dev_make_payload.sh
+/scripts/extract_motif_family.php
+/scripts/extract_motif_family.py
+/scripts/extract_place_meta.php
+/scripts/extract_place_meta.py
+
 # OS / Editor
 .DS_Store
 *.swp

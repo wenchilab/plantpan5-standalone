@@ -53,6 +53,11 @@ mkdir -p "$OUT"; rm -f "$ZIP"
        "$NAME/REPACKAGE_INSTRUCTIONS.md" \
        "$NAME/DESIGN_extensible_motif_library.md" \
        "$NAME/RELEASE.md" \
+       "$NAME/scripts/_dev_make_payload.sh" \
+       "$NAME/scripts/extract_motif_family.php" \
+       "$NAME/scripts/extract_motif_family.py" \
+       "$NAME/scripts/extract_place_meta.php" \
+       "$NAME/scripts/extract_place_meta.py" \
 )
 ( cd "$OUT" && sha256sum "$(basename "$ZIP")" > "$(basename "$ZIP").sha256" )
 
