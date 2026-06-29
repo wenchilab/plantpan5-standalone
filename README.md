@@ -51,44 +51,82 @@ docker --version
 docker run --rm hello-world        # prints "Hello from Docker!" when working
 ```
 
-### 2. Get PlantPAN and run it
+### 2. Download
 
-Pick **one** option below; both end with the app on port 8080.
+Get the files from **either** source:
 
-**Option A — Ready-to-run image (recommended, no build).** Download
-`plantpan5-offline-v1.0-image.tar.gz` from the [Releases](../../releases) page:
+- **PlantPAN website** — the download page at
+  <https://plantpan.itps.ncku.edu.tw/> (look for the Stand-alone Edition download).
+- **GitHub Releases** — this repo's [Releases](../../releases) page.
+
+Both offer the same two files:
+
+- `plantpan5-offline-v1.0-image.tar.gz` — ready-to-run image → **Option A**
+- `plantpan5-offline-v1.0-<date>.zip` — source package → **Option B**
+
+### 3. Load and run
+
+Most users want **Option A**. When it's running, open <http://localhost:8080>.
+
+#### Option A — Ready-to-run image (recommended, no build)
+
+`docker load -i` reads the gzipped tarball directly, so this is the same on
+every platform — just use that platform's terminal.
+
+**Linux / macOS** — Terminal:
 
 ```bash
-gunzip -c plantpan5-offline-v1.0-image.tar.gz | docker load
+docker load -i plantpan5-offline-v1.0-image.tar.gz
 docker run --rm -p 8080:80 plantpan5-offline:1.0
 ```
 
-**Option B — Source package (smaller; builds locally, needs internet on first
-build).** Download `plantpan5-offline-v1.0-*.zip` from Releases:
+**Windows** — PowerShell (Docker Desktop running), `cd` to the download folder first:
+
+```powershell
+docker load -i plantpan5-offline-v1.0-image.tar.gz
+docker run --rm -p 8080:80 plantpan5-offline:1.0
+```
+
+#### Option B — Source package (builds locally; needs internet on first build)
+
+**Linux / macOS** — Terminal:
 
 ```bash
 unzip plantpan5-offline-v1.0-*.zip
 cd plantpan5-offline
-chmod +x build.sh entrypoint.sh scripts/*.sh app/bin/*   # Win/Mac unzip drops the +x bit
+chmod +x build.sh entrypoint.sh scripts/*.sh app/bin/*   # unzip drops the +x bit
 ./build.sh                                               # ~3-8 min the first time
 docker run --rm -p 8080:80 plantpan5-offline:latest
 ```
 
-### 3. Open, stop, change port
+**Windows** — the build script is a **bash** script, so run it inside a **WSL**
+(Ubuntu) terminal; the commands are identical to Linux/macOS above, and Docker
+Desktop's WSL integration lets the container start. If you only want to *run*
+(not build), use Option A in PowerShell instead.
+
+### 4. Open, stop, change port
 
 - **Open:** <http://localhost:8080> in your browser.
 - **Stop:** press `Ctrl+C` in the terminal running the container.
-- **Port 8080 busy?** map a different host port:
+- **Port 8080 busy?** map a different host port (same on all platforms):
 
 ```bash
 docker run --rm -p 9090:80 plantpan5-offline:1.0   # then open http://localhost:9090
 ```
 
-### 4. Command-line scanning (for pipelines)
+### 5. Command-line scanning (for pipelines)
+
+**Linux / macOS** — Terminal:
 
 ```bash
 docker run --rm -v "$PWD":/work plantpan5-offline:1.0 \
     scan /work/your_promoters.fa > hits.tsv
+```
+
+**Windows** — PowerShell (note the `${PWD}` quoting):
+
+```powershell
+docker run --rm -v "${PWD}:/work" plantpan5-offline:1.0 scan /work/your_promoters.fa > hits.tsv
 ```
 
 Outputs a 10-column TSV: `Sequence ID, Motif ID, Source, PLACE Name, Family,
