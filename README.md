@@ -68,17 +68,17 @@ Both offer the same two files:
 
 When it's running, open <http://localhost:8080> in your browser.
 
-> **Important — go to the download folder first.** The commands below only work
-> if your terminal is *in the same folder as the downloaded file*. Downloads
-> usually land in `Downloads`, so each block starts with a `cd` into it — change
-> that path if you saved the file elsewhere.
+> **Important — change into the folder that holds the downloaded file first.**
+> The commands run from your current directory, so they only work when your
+> terminal is in that folder. Replace the `path/to/...` placeholder in each `cd`
+> with the actual location where the file was saved.
 
 #### Option A — Ready-to-run image (recommended, no build)
 
 **Linux / macOS** — Terminal:
 
 ```bash
-cd ~/Downloads                                    # the folder with the downloaded file
+cd /path/to/download-folder                       # where the downloaded file is
 docker load -i plantpan5-offline-v1.0-image.tar.gz
 docker run --rm -p 8080:80 plantpan5-offline:1.0
 ```
@@ -92,7 +92,7 @@ docker run --rm -p 8080:80 plantpan5-offline:1.0
 **Windows** — PowerShell (Docker Desktop running):
 
 ```powershell
-cd $HOME\Downloads                                # the folder with the downloaded file
+cd C:\path\to\download-folder                     # where the downloaded file is
 docker load -i plantpan5-offline-v1.0-image.tar.gz
 docker run --rm -p 8080:80 plantpan5-offline:1.0
 ```
@@ -102,7 +102,7 @@ docker run --rm -p 8080:80 plantpan5-offline:1.0
 **Linux / macOS** — Terminal:
 
 ```bash
-cd ~/Downloads                                    # the folder with the downloaded .zip
+cd /path/to/download-folder                       # where the downloaded .zip is
 unzip plantpan5-offline-v1.0-*.zip
 cd plantpan5-offline                              # enter the unzipped folder
 chmod +x build.sh entrypoint.sh scripts/*.sh app/bin/*   # unzip drops the +x bit
