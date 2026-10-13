@@ -1048,88 +1048,82 @@ pp_header('Promoter Analysis — Results', ['datatables', 'upset', 'pmmap']);
         '</div>' +
       '</div>';
 
-    // ---- Hits table: populate + DataTable + species custom search hook --
-    let _hitsRowOrder = [];   // index -> motif_id of row at that dt index
+    // ---- Hits table: DataTable over d.rows (deferRender) -----------------
+    // The rows are NOT pre-built as DOM: a long promoter can yield >100k hits,
+    // and one <tr> per hit (plus DataTables' own copy) is what used to make the
+    // browser tab run out of memory. With `data` + `deferRender` only the rows
+    // on the current page exist as nodes.
     let hitsDt = null;
-    function rebuildHitsTbody() {
-      const tbody = pane.querySelector('#hitsTbl tbody');
-      if (!tbody) return;
-      tbody.innerHTML = '';
-      _hitsRowOrder = [];
-      d.rows.forEach((r, i) => {
-        const tr = document.createElement('tr');
-        tr.dataset.motifId = r.motif_id;
-        const motifLink = '<a href="#" class="pp-matrix-link text-decoration-none"' +
-          ' data-matrix="' + esc(r.motif_id) + '" title="Open TFBS info on PlantPAN (POST)">' +
-          esc(r.motif_id) + ' <i class="bi bi-box-arrow-up-right" style="font-size:.7em;"></i></a>';
-        const sourceCells = HAS_SPECIES_FILTER
-          ? '<td>' + sourcePill(r.source) + '</td>' +
-            '<td class="small-mono">' + (r.place_name ? '<code>' + esc(r.place_name) + '</code>' : '<span class="text-muted">—</span>') + '</td>'
-          : '';
-        tr.innerHTML =
-          '<td class="small-mono">' + motifLink + '</td>' +
-          sourceCells +
-          '<td><span class="pill">' + esc(r.family) + '</span></td>' +
-          '<td>' + r.position + '</td>' +
-          '<td>' + (r.strand === '+'
-            ? '<span style="color:var(--pp-red);font-weight:700;">+</span>'
-            : '<span style="color:var(--pp-blue);font-weight:700;">-</span>') + '</td>' +
-          '<td class="small-mono">' + esc(r.score || '') + '</td>' +
-          '<td class="small-mono">' + esc(r.hit) + '</td>';
-        tbody.appendChild(tr);
-        _hitsRowOrder.push(r.motif_id);
-      });
+    function hitsColumns() {
+      const col = (data, render, cls) => {
+        const c = { data: data };
+        if (render) c.render = render;
+        if (cls) c.className = cls;
+        return c;
+      };
+      const disp = fn => (v, type, row) => (type === 'display' ? fn(v, row) : (v === null || v === undefined ? '' : v));
+      const cols = [
+        col('motif_id', disp(v =>
+          '<a href="#" class="pp-matrix-link text-decoration-none" data-matrix="' + esc(v) + '"' +
+          ' title="Open TFBS info on PlantPAN (POST)">' + esc(v) +
+          ' <i class="bi bi-box-arrow-up-right" style="font-size:.7em;"></i></a>'), 'small-mono'),
+      ];
+      if (HAS_SPECIES_FILTER) {
+        cols.push(col('source', disp(v => sourcePill(v))));
+        cols.push(col('place_name', disp(v =>
+          v ? '<code>' + esc(v) + '</code>' : '<span class="text-muted">&mdash;</span>'), 'small-mono'));
+      }
+      cols.push(col('family', disp(v => '<span class="pill">' + esc(v) + '</span>')));
+      cols.push(col('position', null, 'text-center'));
+      cols.push(col('strand', disp(v => v === '+'
+        ? '<span style="color:var(--pp-red);font-weight:700;">+</span>'
+        : '<span style="color:var(--pp-blue);font-weight:700;">-</span>'), 'text-center'));
+      cols.push(col('score', disp(v => esc(v || '')), 'text-center small-mono'));
+      cols.push(col('hit', disp(v => esc(v)), 'small-mono'));
+      return cols;
     }
 
     if (!noHits) {
-      rebuildHitsTbody();
-
       // DataTable: defer init slightly so the tab pane has its real width.
       // Otherwise scrollX gets a 0-width measurement and headers misalign.
       setTimeout(() => {
-        if (!$.fn.DataTable.isDataTable('#hitsTbl')) {
-          const colDefs = HAS_SPECIES_FILTER
-            ? [
-                { targets: 4, className: 'text-center' },  // Pos
-                { targets: 5, className: 'text-center' },  // Strand
-                { targets: 6, className: 'text-center' },  // Score
-              ]
-            : [
-                { targets: 2, className: 'text-center' },
-                { targets: 3, className: 'text-center' },
-                { targets: 4, className: 'text-center' },
-              ];
-          hitsDt = $('#hitsTbl').DataTable({
-            pageLength: 25,
-            lengthMenu: [10, 25, 50, 100, 500],
-            order: [[hitsPosCol, 'asc']],
-            autoWidth: false,
-            scrollX: true,           // long Hit column shouldn't push table past .pp-card
-            columnDefs: colDefs,
-          });
-        } else {
-          hitsDt = $('#hitsTbl').DataTable();
+        if ($.fn.DataTable.isDataTable('#hitsTbl')) {
+          try { $('#hitsTbl').DataTable().destroy(); } catch (e) {}
+          const tb = pane.querySelector('#hitsTbl tbody');
+          if (tb) tb.innerHTML = '';
         }
+        hitsDt = $('#hitsTbl').DataTable({
+          data: d.rows,
+          columns: hitsColumns(),
+          deferRender: true,       // build row nodes only for the visible page
+          pageLength: 25,
+          lengthMenu: [10, 25, 50, 100, 500],
+          order: [[hitsPosCol, 'asc']],
+          autoWidth: false,
+          scrollX: true,           // long Hit column shouldn't push table past .pp-card
+          createdRow: (tr, rowData) => { tr.dataset.motifId = rowData.motif_id; },
+        });
         const fEl = pane.querySelector('.pp-pos-filter[data-target-tbl="hitsTbl"]');
         if (fEl) wirePosFilter(fEl, 'hitsTbl', hitsPosCol, maxBp);
       }, 50);
     }
 
-    // Species filter hook for Pattern Search DataTable: reads motif_id
-    // from the row's <tr data-motif-id="..."> via the index map we built.
+    // Species filter hook for Pattern Search DataTable. With a data-driven
+    // DataTable the third argument is the index into the source array, so we
+    // read the motif id straight from d.rows — no parallel row-order map.
     if (HAS_SPECIES_FILTER && !window._hitsTblSearchHookInstalled) {
       window._hitsTblSearchHookInstalled = true;
       $.fn.dataTable.ext.search.push(function(settings, data, idx) {
         if (settings.nTable.id !== 'hitsTbl') return true;
         if (!speciesFilter.isActive()) return true;
         const ctx = window._hitsTblCtx;
-        if (!ctx) return true;
-        const motifId = ctx.rowOrder[idx];
-        if (!motifId) return true;
-        return speciesFilter.passes(motifId, ctx.motifSpecies);
+        if (!ctx || !ctx.rows) return true;
+        const row = ctx.rows[idx];
+        if (!row) return true;
+        return speciesFilter.passes(row.motif_id, ctx.motifSpecies);
       });
     }
-    window._hitsTblCtx = { rowOrder: _hitsRowOrder, motifSpecies };
+    window._hitsTblCtx = { rows: d.rows, motifSpecies };
 
     // Per-render state for the position track + track table.
     const trackState = { selected: new Set(), showAll: false, api: null };
@@ -1615,33 +1609,35 @@ pp_header('Promoter Analysis — Results', ['datatables', 'upset', 'pmmap']);
     if (!tbl) return null;
     let dt = null;
     if (!$.fn.DataTable.isDataTable('#trackTbl')) {
-      const tbody = tbl.querySelector('tbody');
-      const rowOrder = [];
-      (d.rows || []).forEach((r, i) => {
-        const tr = document.createElement('tr');
-        tr.dataset.rowIdx = i;
-        tr.dataset.motifId = r.motif_id;
-        tr.style.cursor = 'pointer';
-        tr.innerHTML =
-          '<td>' + r.position + '</td>' +
-          '<td>' + (r.strand === '+'
-            ? '<span style="color:var(--pp-red);font-weight:700;">+</span>'
-            : '<span style="color:var(--pp-blue);font-weight:700;">-</span>') + '</td>' +
-          '<td class="small-mono">' + esc(r.motif_id) + '</td>' +
-          '<td>' + esc(r.family) + '</td>' +
-          '<td class="small-mono">' + esc(r.score || '') + '</td>' +
-          '<td class="small-mono">' + esc(r.hit) + '</td>';
-        tbody.appendChild(tr);
-        rowOrder.push(r.motif_id);
-      });
+      // Same reasoning as the Pattern Search table: feed DataTables the data
+      // and let deferRender create nodes for the visible page only.
+      const data = (d.rows || []).map((r, i) => Object.assign({ _idx: i }, r));
+      const disp = fn => (v, type) => (type === 'display' ? fn(v) : (v === null || v === undefined ? '' : v));
       dt = $('#trackTbl').DataTable({
+        data: data,
+        columns: [
+          { data: 'position', className: 'text-center' },
+          { data: 'strand', className: 'text-center', render: disp(v => v === '+'
+              ? '<span style="color:var(--pp-red);font-weight:700;">+</span>'
+              : '<span style="color:var(--pp-blue);font-weight:700;">-</span>') },
+          { data: 'motif_id', className: 'small-mono', render: disp(v => esc(v)) },
+          { data: 'family', render: disp(v => esc(v)) },
+          { data: 'score', className: 'text-center small-mono', render: disp(v => esc(v || '')) },
+          { data: 'hit', className: 'small-mono', render: disp(v => esc(v)) },
+        ],
+        deferRender: true,
         pageLength: 10, lengthMenu: [10, 25, 50, 100],
         order: [[0, 'asc']], autoWidth: false,
-        columnDefs: [{ targets: [0, 1, 4], className: 'text-center' }],
+        createdRow: (tr, rowData) => {
+          tr.dataset.rowIdx  = rowData._idx;
+          tr.dataset.motifId = rowData.motif_id;
+          tr.style.cursor    = 'pointer';
+          if (state.selected.has(rowData._idx)) tr.classList.add('pp-track-selected');
+        },
       });
       const fEl = document.querySelector('.pp-pos-filter[data-target-tbl="trackTbl"]');
       if (fEl) wirePosFilter(fEl, 'trackTbl', 0, maxBp);
-      window._trackTblCtx = { rowOrder, motifSpecies };
+      window._trackTblCtx = { rowOrder: data.map(r => r.motif_id), motifSpecies };
       if (!window._trackTblSearchHookInstalled) {
         window._trackTblSearchHookInstalled = true;
         $.fn.dataTable.ext.search.push(function(settings, data, idx) {
@@ -1707,6 +1703,10 @@ pp_header('Promoter Analysis — Results', ['datatables', 'upset', 'pmmap']);
       clear.dataset.wired = '1';
       clear.addEventListener('click', function() {
         state.selected.clear();
+        // deferRender keeps already-created rows cached off-DOM: clear those too.
+        if (window.jQuery && $.fn.DataTable && $.fn.DataTable.isDataTable('#trackTbl')) {
+          try { $('#trackTbl').DataTable().rows().nodes().to$().removeClass('pp-track-selected'); } catch (e) {}
+        }
         document.querySelectorAll('#trackTbl tbody tr.pp-track-selected')
           .forEach(tr => tr.classList.remove('pp-track-selected'));
         if (state.api) {

@@ -11,7 +11,7 @@
  */
 
 // Released version, stamped in the footer + About page.
-const PP_VERSION = '1.0';
+const PP_VERSION = '1.1';
 
 function pp_header(string $title = 'PlantPAN 5 — Stand-alone Edition', array $extras = []): void
 {

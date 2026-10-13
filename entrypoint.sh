@@ -8,6 +8,16 @@ set -euo pipefail
 CMD="${1:-serve}"
 shift || true
 
+# Optional override of the PHP memory ceiling, e.g.
+#   docker run -e PP_MEMORY_LIMIT=8G ...
+# The analysis holds one job's hits in memory, so this is what bounds how much
+# sequence a single submission can carry (see "Limits" in README.md).
+if [ -n "${PP_MEMORY_LIMIT:-}" ]; then
+    echo "[plantpan5-offline] php memory_limit = ${PP_MEMORY_LIMIT}"
+    sed -i "s/^memory_limit = .*/memory_limit = ${PP_MEMORY_LIMIT}/" \
+        /usr/local/etc/php/conf.d/plantpan.ini
+fi
+
 case "$CMD" in
     serve)
         echo "[plantpan5-offline] starting Apache on :80"

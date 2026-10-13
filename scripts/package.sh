@@ -5,7 +5,7 @@ set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 NAME="$(basename "$HERE")"
-VERSION="${VERSION:-1.0}"
+VERSION="${VERSION:-1.1}"
 DATE="$(date -u +%Y%m%d)"
 OUT="${OUT_DIR:-$(cd "$HERE/.." && pwd)}"
 ZIP="$OUT/plantpan5-offline-v${VERSION}-${DATE}.zip"

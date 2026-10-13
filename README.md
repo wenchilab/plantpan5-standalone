@@ -61,8 +61,8 @@ Get the files from **either** source:
 
 Both offer the same two files:
 
-- `plantpan5-offline-v1.0-image.tar.gz` — ready-to-run image → **Option A**
-- `plantpan5-offline-v1.0-<date>.zip` — source package → **Option B**
+- `plantpan5-offline-v1.1-image.tar.gz` — ready-to-run image → **Option A**
+- `plantpan5-offline-v1.1-<date>.zip` — source package → **Option B**
 
 ### 3. Load and run
 
@@ -79,13 +79,13 @@ When it's running, open <http://localhost:8080> in your browser.
 
 ```bash
 cd /path/to/download-folder                       # where the downloaded file is
-docker load -i plantpan5-offline-v1.0-image.tar.gz
-docker run --rm -p 8080:80 plantpan5-offline:1.0
+docker load -i plantpan5-offline-v1.1-image.tar.gz
+docker run --rm -p 8080:80 plantpan5-offline:1.1
 ```
 
 > **macOS Safari note:** Safari auto-expands `.gz`, so your file may arrive as
-> `plantpan5-offline-v1.0-image.tar` (no `.gz`). Just use that name —
-> `docker load -i plantpan5-offline-v1.0-image.tar` — it reads both `.tar.gz`
+> `plantpan5-offline-v1.1-image.tar` (no `.gz`). Just use that name —
+> `docker load -i plantpan5-offline-v1.1-image.tar` — it reads both `.tar.gz`
 > and plain `.tar`. (To stop the auto-expand: Safari → Settings → General →
 > uncheck "Open 'safe' files after downloading".)
 
@@ -93,9 +93,17 @@ docker run --rm -p 8080:80 plantpan5-offline:1.0
 
 ```powershell
 cd C:\path\to\download-folder                     # where the downloaded file is
-docker load -i plantpan5-offline-v1.0-image.tar.gz
-docker run --rm -p 8080:80 plantpan5-offline:1.0
+docker load -i plantpan5-offline-v1.1-image.tar.gz
+docker run --rm -p 8080:80 plantpan5-offline:1.1
 ```
+
+> **Windows port note:** if the last command fails with *"An attempt was made to
+> access a socket in a way forbidden by its access permissions"*, port 8080 is
+> not in use — it falls inside a range Windows reserves for Hyper-V/WSL. Ports
+> around 8000-8100 are often reserved, so use a higher one instead:
+> `docker run --rm -p 8888:80 plantpan5-offline:1.1`, then open
+> <http://localhost:8888>. See Troubleshooting for how to inspect or release the
+> reserved ranges.
 
 #### Option B — Source package (builds locally; needs internet on first build)
 
@@ -103,7 +111,7 @@ docker run --rm -p 8080:80 plantpan5-offline:1.0
 
 ```bash
 cd /path/to/download-folder                       # where the downloaded .zip is
-unzip plantpan5-offline-v1.0-*.zip
+unzip plantpan5-offline-v1.1-*.zip
 cd plantpan5-offline                              # enter the unzipped folder
 chmod +x build.sh entrypoint.sh scripts/*.sh app/bin/*   # unzip drops the +x bit
 ./build.sh                                               # ~3-8 min the first time
@@ -119,10 +127,12 @@ If you only want to *run* (not build), use Option A in PowerShell instead.
 
 - **Open:** <http://localhost:8080> in your browser.
 - **Stop:** press `Ctrl+C` in the terminal running the container.
-- **Port 8080 busy?** map a different host port (same on all platforms):
+- **Port 8080 busy or blocked?** map a different host port (same on all
+  platforms). On Windows, prefer a port above the Hyper-V/WSL reserved
+  ranges, e.g. 8888:
 
 ```bash
-docker run --rm -p 9090:80 plantpan5-offline:1.0   # then open http://localhost:9090
+docker run --rm -p 8888:80 plantpan5-offline:1.1   # then open http://localhost:8888
 ```
 
 ### 5. Command-line scanning (for pipelines)
@@ -134,7 +144,7 @@ the folder that holds your FASTA file first.
 
 ```bash
 cd /path/to/your/fasta             # the folder containing your_promoters.fa
-docker run --rm -v "$PWD":/work plantpan5-offline:1.0 \
+docker run --rm -v "$PWD":/work plantpan5-offline:1.1 \
     scan /work/your_promoters.fa > hits.tsv
 ```
 
@@ -142,7 +152,7 @@ docker run --rm -v "$PWD":/work plantpan5-offline:1.0 \
 
 ```powershell
 cd C:\path\to\your\fasta           # the folder containing your_promoters.fa
-docker run --rm -v "${PWD}:/work" plantpan5-offline:1.0 scan /work/your_promoters.fa > hits.tsv
+docker run --rm -v "${PWD}:/work" plantpan5-offline:1.1 scan /work/your_promoters.fa > hits.tsv
 ```
 
 Outputs a 10-column TSV: `Sequence ID, Motif ID, Source, PLACE Name, Family,
@@ -153,6 +163,15 @@ Position, Strand, Score, Hit sequence, Species`.
 - **`Cannot connect to the Docker daemon`** — Docker isn't running. Start Docker
   Desktop (Windows/macOS) or `sudo systemctl start docker` (Linux).
 - **`port is already allocated`** — use a different host port (see step 3).
+- **`bind: An attempt was made to access a socket in a way forbidden by its
+  access permissions` (Windows)** — the port is not in use; it falls inside a
+  range Windows has reserved for Hyper-V/WSL, so Docker is not allowed to bind
+  it. Ports in the 8000-8100 region are often reserved. Map a higher host port
+  instead, e.g. `docker run --rm -p 8888:80 plantpan5-offline:1.1` and open
+  <http://localhost:8888>. To see which ranges are reserved, run
+  `netsh interface ipv4 show excludedportrange protocol=tcp`; to release them,
+  run `net stop winnat` followed by `net start winnat` in an elevated
+  PowerShell.
 - **`./build.sh: Permission denied`** — restore exec bits:
   `chmod +x build.sh entrypoint.sh scripts/*.sh app/bin/*`.
 - **`/bin/bash^M: bad interpreter`** — line endings got mangled:
@@ -226,12 +245,34 @@ docker run --rm -p 8080:80 \
 Motifs with no annotation still scan (shown as matrix ID + `(unannotated)` +
 `(uncharacterized species)`). Full spec + caps: see `OFFLINE_BUILD.md`.
 
+## Changes in 1.1
+
+- Result tables (Pattern Search, Position Track) are now rendered page by page.
+  A long promoter used to build one table row per hit up front, which could
+  exhaust the browser tab's memory on sequences of a few tens of kb.
+- The command-line scanner now applies the same input limits as the web
+  interface; previously it stopped at 50 sequences per run.
+- The PHP memory ceiling can now be raised at run time with
+  `-e PP_MEMORY_LIMIT=...`, which is what bounds how much sequence a single
+  submission can carry.
+- Documented limits and hardware requirements corrected against measurements
+  (see `REQUIREMENTS.md`).
+
 ## Limits in the offline build
 
-- No hard cap on sequence count (effectively unlimited)
-- 50,000 bp per sequence
-- 100,000,000 bp aggregate per job (FASTA headers excluded)
-- Input text up to 100 MB; per-job output cap 5 GB
+- No hard cap on sequence count (configured ceiling: 100,000 sequences)
+- 50,000 bp per sequence; input text up to 100 MB
+- Hard caps of 100,000,000 bp and 5 GB of output per job. In practice a job is
+  bounded first by the container's PHP `memory_limit` (2 GB by default), which
+  corresponds to roughly **1-2 Mbp of total sequence per submission**. To go
+  beyond that, start the container with a higher ceiling
+  (`docker run -e PP_MEMORY_LIMIT=8G ...`) and make sure the host has the
+  memory to back it; otherwise split large batches into several runs.
+- Results occupy roughly **0.5 GB per Mbp** of sequence analysed (TSV + JSON,
+  measured on AT-rich test sequence); a job whose estimate exceeds 80 % of the
+  free disk is declined before it starts
+- Scanning takes about **1 minute per Mbp** on one CPU core and is
+  single-threaded, so extra cores do not shorten an individual job
 - No MEME / TomTom / cross-species / ChIP-seq / PPI / homolog data
 
 Need any of these? Use the live site at <https://plantpan.itps.ncku.edu.tw>.

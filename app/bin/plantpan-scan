@@ -9,6 +9,10 @@
  * stream, tagged by a Source column. PLACE rows additionally carry a
  * PLACE Name. The Species column is semicolon-separated.
  */
+// job_utils.php first: it defines the input limits (PP_MAX_SEQUENCES,
+// PP_MAX_TOTAL_BP, ...). Without it, pp_write_input_fasta() falls back to the
+// historical 50-sequence cap and the CLI would accept less than the web UI.
+require __DIR__ . '/../includes/job_utils.php';
 require __DIR__ . '/../includes/scan_engine.php';
 
 $argv0 = $argv[0] ?? 'plantpan-scan';
@@ -28,6 +32,16 @@ if ($raw === false) { fwrite(STDERR, "ERROR: cannot read $src\n"); exit(1); }
 try {
     $tmp = sys_get_temp_dir();
     $fa  = pp_write_input_fasta($raw, $tmp);
+    // Same aggregate cap the web path applies in pp_scan_to_files().
+    $total_bp = (int) array_sum(pp_parse_fasta_lengths($fa));
+    if (defined('PP_MAX_TOTAL_BP') && $total_bp > PP_MAX_TOTAL_BP) {
+        @unlink($fa);
+        throw new RuntimeException(sprintf(
+            'Total sequence content is %s bp; the maximum allowed per run is %s bp '
+          . '(FASTA headers excluded). Split the input into smaller batches.',
+            number_format($total_bp), number_format(PP_MAX_TOTAL_BP)
+        ));
+    }
     $r   = pp_scan_promoters($fa, $tmp);
     @unlink($fa);
 } catch (Throwable $e) {
